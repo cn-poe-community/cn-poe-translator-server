@@ -4,6 +4,9 @@ import Assets from "cn-poe-export-db";
 import bodyParser from 'body-parser';
 import { Requester } from "./requester.js";
 import { GetCharactersQuery } from "./types.js";
+import { transform } from "pob-building-creator";
+import { deflate } from "pako";
+import { Base64 } from "js-base64";
 
 const port = 8005
 const cookie = ""
@@ -88,6 +91,26 @@ app.get('/character-window/get-items', (req, res) => {
             console.log("error: ", "get /character-window/get-items: ", err)
             res.send("")
         })
+})
+
+app.get('/transform', async (req, res) => {
+    const urlObj = new URL(
+        decodeUtf8Component(req.url),
+        `http://${req.headers.host}`
+    );
+    const params = urlObj.searchParams;
+    const accountName = params.get("accountName");
+    const character = params.get("character");
+    let items = await requester.getItems(accountName!, character!, "pc");
+    let passiveSkills = await requester.getPassiveSkills(accountName!, character!, "pc");
+
+    items = jsonTranslator.translateItems(items);
+    jsonTranslator.translatePassiveSkills(passiveSkills);
+
+    const building = transform(items, passiveSkills);
+    const compressed = deflate(building.toString())
+    let code = Base64.fromUint8Array(compressed);
+    res.send(code.replaceAll("+", "-").replaceAll("/", "_"))
 })
 
 process.on('uncaughtException', err => {
